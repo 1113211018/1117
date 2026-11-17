@@ -1,1 +1,483 @@
-Hello
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Rainbow Duck HTML5</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body {
+      background-color: #2c3e50;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    #game-container {
+      position: relative;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 4px solid #34495e;
+    }
+    canvas {
+      display: block;
+      background-color: #70c5ce;
+    }
+  </style>
+</head>
+<body>
+
+<div id="game-container">
+  <canvas id="gameCanvas" width="360" height="600"></canvas>
+</div>
+
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  // 遊戲狀態變數
+  let frames = 0;
+  let score = 0;
+  let bestScore = localStorage.getItem('rainbow_duck_best') || 0;
+  let gameState = 'START'; // 'START', 'PLAYING', 'GAMEOVER'
+
+  // 彩虹尾跡設定
+  const rainbow = {
+    points: [],
+    colors: ['#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#007aff', '#5856d6'],
+    stripeHeight: 3.5,
+
+    update() {
+      // 在遊玩中或待機時持續從鴨子後方產生彩虹軌跡
+      if (gameState !== 'GAMEOVER') {
+        this.points.push({
+          x: duck.x - 14,
+          y: duck.y + 2
+        });
+      }
+
+      // 讓所有彩虹點跟著場景向左移動
+      for (let i = 0; i < this.points.length; i++) {
+        if (gameState !== 'GAMEOVER') {
+          this.points[i].x -= pipes.dx;
+        }
+      }
+
+      // 移除超出畫面左側的軌跡點
+      while (this.points.length > 0 && this.points[0].x < -20) {
+        this.points.shift();
+      }
+    },
+
+    draw() {
+      if (this.points.length < 2) return;
+
+      const totalHeight = this.colors.length * this.stripeHeight;
+      const startOffset = -totalHeight / 2;
+
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      for (let c = 0; c < this.colors.length; c++) {
+        ctx.strokeStyle = this.colors[c];
+        ctx.lineWidth = this.stripeHeight + 0.6;
+        ctx.beginPath();
+
+        const yOffset = startOffset + c * this.stripeHeight + this.stripeHeight / 2;
+
+        for (let i = 0; i < this.points.length; i++) {
+          const pt = this.points[i];
+          // 加上一點點波浪律動感
+          const wave = Math.sin((pt.x + frames * 3) * 0.08) * 1.5;
+          if (i === 0) {
+            ctx.moveTo(pt.x, pt.y + yOffset + wave);
+          } else {
+            ctx.lineTo(pt.x, pt.y + yOffset + wave);
+          }
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    },
+
+    reset() {
+      this.points = [];
+    }
+  };
+
+  // 小鴨主角設定
+  const duck = {
+    x: 80,
+    y: 250,
+    width: 38,
+    height: 28,
+    gravity: 0.25,
+    jump: 4.8,
+    speed: 0,
+    rotation: 0,
+
+    draw() {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.rotation);
+
+      // 1. 鴨子翹尾巴
+      ctx.fillStyle = '#ffe135';
+      ctx.strokeStyle = '#2c3e50';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-12, 2);
+      ctx.lineTo(-22, -6);
+      ctx.lineTo(-15, 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // 2. 鴨子身體（橢圓偏厚）
+      ctx.fillStyle = '#ffe135';
+      ctx.beginPath();
+      ctx.ellipse(-2, 4, 15, 11, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // 3. 鴨子頭部（圓形）
+      ctx.beginPath();
+      ctx.arc(8, -6, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // 4. 扁扁的橘色鴨嘴
+      ctx.fillStyle = '#ff7f00';
+      ctx.beginPath();
+      // 上嘴喙
+      ctx.ellipse(20, -5, 8, 3.5, 0.1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      // 下嘴喙
+      ctx.beginPath();
+      ctx.ellipse(19, -1.5, 6.5, 2.5, -0.1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // 5. 眼睛與高光
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(11, -8, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#000000';
+      ctx.beginPath();
+      ctx.arc(12.2, -8, 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(12.8, -8.8, 0.8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 6. 拍動的翅膀
+      ctx.fillStyle = '#f5c71a';
+      ctx.beginPath();
+      const wingAngle = (gameState === 'PLAYING' && frames % 10 < 5) ? -0.4 : 0.2;
+      ctx.ellipse(-3, 4, 8, 4.5, wingAngle, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.restore();
+    },
+
+    update() {
+      if (gameState === 'START') {
+        this.y = 250 + Math.cos(frames / 15) * 6;
+        this.rotation = 0;
+      } else {
+        this.speed += this.gravity;
+        this.y += this.speed;
+
+        if (this.speed < 0) {
+          this.rotation = -22 * Math.PI / 180;
+        } else {
+          this.rotation += 2 * Math.PI / 180;
+          if (this.rotation > 65 * Math.PI / 180) {
+            this.rotation = 65 * Math.PI / 180;
+          }
+        }
+
+        // 撞擊地板判定
+        if (this.y + this.height / 2 >= canvas.height - ground.height) {
+          this.y = canvas.height - ground.height - this.height / 2;
+          setGameOver();
+        }
+      }
+    },
+
+    flap() {
+      this.speed = -this.jump;
+    },
+
+    reset() {
+      this.y = 250;
+      this.speed = 0;
+      this.rotation = 0;
+    }
+  };
+
+  // 水管設定
+  const pipes = {
+    list: [],
+    width: 56,
+    gap: 135,
+    dx: 2.2,
+
+    draw() {
+      for (let i = 0; i < this.list.length; i++) {
+        let p = this.list[i];
+        let topY = p.y;
+        let bottomY = p.y + this.gap;
+
+        ctx.fillStyle = '#2ecc71';
+        ctx.strokeStyle = '#27ae60';
+        ctx.lineWidth = 3;
+
+        // 上方水管
+        ctx.fillRect(p.x, 0, this.width, topY);
+        ctx.strokeRect(p.x, 0, this.width, topY);
+        ctx.fillRect(p.x - 3, topY - 22, this.width + 6, 22);
+        ctx.strokeRect(p.x - 3, topY - 22, this.width + 6, 22);
+
+        // 下方水管
+        const bottomHeight = canvas.height - ground.height - bottomY;
+        ctx.fillRect(p.x, bottomY, this.width, bottomHeight);
+        ctx.strokeRect(p.x, bottomY, this.width, bottomHeight);
+        ctx.fillRect(p.x - 3, bottomY, this.width + 6, 22);
+        ctx.strokeRect(p.x - 3, bottomY, this.width + 6, 22);
+      }
+    },
+
+    update() {
+      if (gameState !== 'PLAYING') return;
+
+      if (frames % 105 === 0) {
+        const minTop = 60;
+        const maxTop = canvas.height - ground.height - this.gap - 60;
+        const randomY = Math.floor(Math.random() * (maxTop - minTop + 1) + minTop);
+        this.list.push({
+          x: canvas.width,
+          y: randomY,
+          passed: false
+        });
+      }
+
+      for (let i = 0; i < this.list.length; i++) {
+        let p = this.list[i];
+        p.x -= this.dx;
+
+        // 碰撞偵測
+        const hitMargin = 4;
+        const duckLeft = duck.x - duck.width / 2 + hitMargin;
+        const duckRight = duck.x + duck.width / 2 - hitMargin;
+        const duckTop = duck.y - duck.height / 2 + hitMargin;
+        const duckBottom = duck.y + duck.height / 2 - hitMargin;
+
+        if (duckRight > p.x && duckLeft < p.x + this.width) {
+          if (duckTop < p.y || duckBottom > p.y + this.gap) {
+            setGameOver();
+          }
+        }
+
+        // 加分判定
+        if (p.x + this.width < duckLeft && !p.passed) {
+          score++;
+          p.passed = true;
+          if (score > bestScore) {
+            bestScore = score;
+            localStorage.setItem('rainbow_duck_best', bestScore);
+          }
+        }
+
+        if (p.x + this.width < -10) {
+          this.list.shift();
+          i--;
+        }
+      }
+    },
+
+    reset() {
+      this.list = [];
+    }
+  };
+
+  // 地板設定
+  const ground = {
+    height: 80,
+    x: 0,
+    draw() {
+      ctx.fillStyle = '#ded895';
+      ctx.fillRect(0, canvas.height - this.height, canvas.width, this.height);
+
+      ctx.fillStyle = '#73bf2e';
+      ctx.fillRect(0, canvas.height - this.height, canvas.width, 16);
+
+      ctx.fillStyle = '#558c22';
+      for (let i = this.x; i < canvas.width + 20; i += 20) {
+        ctx.beginPath();
+        ctx.moveTo(i, canvas.height - this.height);
+        ctx.lineTo(i - 10, canvas.height - this.height + 16);
+        ctx.lineTo(i - 2, canvas.height - this.height + 16);
+        ctx.lineTo(i + 8, canvas.height - this.height);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      ctx.strokeStyle = '#2c3e50';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height - this.height);
+      ctx.lineTo(canvas.width, canvas.height - this.height);
+      ctx.stroke();
+    },
+    update() {
+      if (gameState !== 'GAMEOVER') {
+        this.x = (this.x - pipes.dx) % 20;
+      }
+    }
+  };
+
+  function drawBackground() {
+    ctx.fillStyle = '#70c5ce';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    const cloudOffset = (frames * 0.3) % (canvas.width + 150);
+    drawCloud(canvas.width - cloudOffset + 50, 100);
+    drawCloud((canvas.width - cloudOffset + 240) % (canvas.width + 150) - 50, 170);
+  }
+
+  function drawCloud(x, y) {
+    ctx.beginPath();
+    ctx.arc(x, y, 20, 0, Math.PI * 2);
+    ctx.arc(x + 18, y - 8, 24, 0, Math.PI * 2);
+    ctx.arc(x + 38, y, 20, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawUI() {
+    ctx.textAlign = 'center';
+
+    if (gameState === 'START') {
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#2c3e50';
+      ctx.lineWidth = 4;
+      ctx.font = 'bold 34px sans-serif';
+      ctx.strokeText('RAINBOW DUCK', canvas.width / 2, 140);
+      ctx.fillText('RAINBOW DUCK', canvas.width / 2, 140);
+
+      ctx.font = 'bold 18px sans-serif';
+      ctx.lineWidth = 3;
+      ctx.strokeText('點擊畫面或按空白鍵開始', canvas.width / 2, 340);
+      ctx.fillText('點擊畫面或按空白鍵開始', canvas.width / 2, 340);
+    }
+
+    if (gameState === 'PLAYING') {
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#2c3e50';
+      ctx.lineWidth = 5;
+      ctx.font = 'bold 48px sans-serif';
+      ctx.strokeText(score, canvas.width / 2, 75);
+      ctx.fillText(score, canvas.width / 2, 75);
+    }
+
+    if (gameState === 'GAMEOVER') {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const boxW = 240;
+      const boxH = 160;
+      const boxX = (canvas.width - boxW) / 2;
+      const boxY = 180;
+
+      ctx.fillStyle = '#ded895';
+      ctx.strokeStyle = '#2c3e50';
+      ctx.lineWidth = 4;
+      ctx.fillRect(boxX, boxY, boxW, boxH);
+      ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+      ctx.fillStyle = '#e74c3c';
+      ctx.font = 'bold 28px sans-serif';
+      ctx.fillText('GAME OVER', canvas.width / 2, boxY + 42);
+
+      ctx.fillStyle = '#2c3e50';
+      ctx.font = 'bold 20px sans-serif';
+      ctx.fillText(`本次分數：${score}`, canvas.width / 2, boxY + 85);
+      ctx.fillText(`最高紀錄：${bestScore}`, canvas.width / 2, boxY + 120);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#2c3e50';
+      ctx.lineWidth = 3;
+      ctx.font = 'bold 18px sans-serif';
+      ctx.strokeText('點擊畫面或按空白鍵重新開始', canvas.width / 2, boxY + boxH + 45);
+      ctx.fillText('點擊畫面或按空白鍵重新開始', canvas.width / 2, boxY + boxH + 45);
+    }
+  }
+
+  function setGameOver() {
+    gameState = 'GAMEOVER';
+  }
+
+  function handleAction(e) {
+    if (e && e.type === 'keydown' && e.code !== 'Space') return;
+    if (e) e.preventDefault();
+
+    if (gameState === 'START') {
+      gameState = 'PLAYING';
+      duck.flap();
+    } else if (gameState === 'PLAYING') {
+      duck.flap();
+    } else if (gameState === 'GAMEOVER') {
+      duck.reset();
+      pipes.reset();
+      rainbow.reset();
+      score = 0;
+      frames = 0;
+      gameState = 'START';
+    }
+  }
+
+  window.addEventListener('keydown', handleAction);
+  canvas.addEventListener('mousedown', handleAction);
+  canvas.addEventListener('touchstart', handleAction, { passive: false });
+
+  function loop() {
+    drawBackground();
+    pipes.update();
+    pipes.draw();
+    ground.update();
+    ground.draw();
+
+    rainbow.update();
+    rainbow.draw();
+
+    duck.update();
+    duck.draw();
+    drawUI();
+
+    frames++;
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+</script>
+
+</body>
+</html>
